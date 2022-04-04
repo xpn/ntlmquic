@@ -41,7 +41,7 @@ private:
 
 public:
 	QuicServer(uint16_t port, const char* relayIP, uint16_t relayPort, const char* path, const char* privatePath) :_port(port), _path(path), _relayIP(relayIP), _relayPort(relayPort), _privatePath(privatePath) {}
-	QuicServer(uint16_t port, const char* relayIP, uint16_t relayPort, const char* hash) :_port(port), _relayIP(relayIP), _relayPort(relayPort) {}
+	QuicServer(uint16_t port, const char* relayIP, uint16_t relayPort, const char* hash) :_port(port), _relayIP(relayIP), _relayPort(relayPort), _hash(hash) {}
 
 	void Start(void);
 	void Stop(void);

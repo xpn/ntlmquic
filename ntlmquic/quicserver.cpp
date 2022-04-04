@@ -127,53 +127,55 @@ QUIC_STATUS QUIC_API QuicServer::ServerListenerCallback(HQUIC Listener, void* Co
 	return Status;
 }
 
-BOOLEAN QuicServer::ServerLoadConfiguration(const char *hash, const char *path, const char *pathPrivate) {
-    QUIC_SETTINGS Settings = { 0 };
-    QUIC_CREDENTIAL_CONFIG_HELPER Config;
-    QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
+    BOOLEAN QuicServer::ServerLoadConfiguration(const char *hash, const char *path, const char *pathPrivate) {
+        QUIC_SETTINGS Settings = { 0 };
+        QUIC_CREDENTIAL_CONFIG_HELPER Config;
+        QUIC_STATUS Status = QUIC_STATUS_SUCCESS;
 
-    Settings.IdleTimeoutMs = IdleTimeoutMs;
-    Settings.IsSet.IdleTimeoutMs = TRUE;
-    Settings.ServerResumptionLevel = QUIC_SERVER_RESUME_AND_ZERORTT;
-    Settings.IsSet.ServerResumptionLevel = TRUE;
-    Settings.PeerBidiStreamCount = 1;
-    Settings.IsSet.PeerBidiStreamCount = TRUE;
+        Settings.IdleTimeoutMs = IdleTimeoutMs;
+        Settings.IsSet.IdleTimeoutMs = TRUE;
+        Settings.ServerResumptionLevel = QUIC_SERVER_RESUME_AND_ZERORTT;
+        Settings.IsSet.ServerResumptionLevel = TRUE;
+        Settings.PeerBidiStreamCount = 1;
+        Settings.IsSet.PeerBidiStreamCount = TRUE;
 
-    memset(&Config, 0, sizeof(Config));
+        memset(&Config, 0, sizeof(Config));
 
-    if (hash != NULL) {
-        Config.CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
-        Config.CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_HASH_STORE;
+        if (hash != NULL) {
+            printf("[*] Using Certificate with Hash: %s\n", hash);
+            Config.CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
+            Config.CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_HASH_STORE;
 
-        uint32_t CertHashLen = DecodeHexBuffer(hash, sizeof(Config.CertHashStore.ShaHash), Config.CertHashStore.ShaHash);
-        if (CertHashLen != sizeof(Config.CertHashStore.ShaHash)) {
+            uint32_t CertHashLen = DecodeHexBuffer(hash, sizeof(Config.CertHashStore.ShaHash), Config.CertHashStore.ShaHash);
+            if (CertHashLen != sizeof(Config.CertHashStore.ShaHash)) {
+                return FALSE;
+            }
+
+            strncpy_s(Config.CertHashStore.StoreName, DEFAULT_CERT_STORE, 2);
+            Config.CertHashStore.Flags = QUIC_CERTIFICATE_HASH_STORE_FLAG_MACHINE_STORE;
+            Config.CredConfig.CertificateHashStore = &Config.CertHashStore;
+        }
+        else {
+            printf("[*] Using Certificate %s\n", path);
+            Config.CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
+            Config.CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+            Config.CertFile.CertificateFile = path;
+            Config.CertFile.PrivateKeyFile = pathPrivate;
+            Config.CredConfig.CertificateFile = &Config.CertFile;
+        }
+
+        if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(this->_registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &this->_configuration))) {
+            printf("[!] ConfigurationOpen error [0x%x]\n", Status);
             return FALSE;
         }
 
-        strncpy_s(Config.CertHashStore.StoreName, DEFAULT_CERT_STORE, 2);
-        Config.CertHashStore.Flags = QUIC_CERTIFICATE_HASH_STORE_FLAG_MACHINE_STORE;
-        Config.CredConfig.CertificateHashStore = &Config.CertHashStore;
-    }
-    else {
-        Config.CredConfig.Flags = QUIC_CREDENTIAL_FLAG_NONE;
-        Config.CredConfig.Type = QUIC_CREDENTIAL_TYPE_CERTIFICATE_FILE;
-        Config.CertFile.CertificateFile = this->_path;
-        Config.CertFile.PrivateKeyFile = this->_privatePath;
-        Config.CredConfig.CertificateFile = &Config.CertFile;
-    }
+        if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(this->_configuration, &Config.CredConfig))) {
+            printf("[!] ConfigurationLoadCredential error [0x%x]\n", Status);
+            return FALSE;
+        }
 
-    if (QUIC_FAILED(Status = MsQuic->ConfigurationOpen(this->_registration, &Alpn, 1, &Settings, sizeof(Settings), NULL, &this->_configuration))) {
-        printf("[!] ConfigurationOpen error [0x%x]\n", Status);
-        return FALSE;
+        return TRUE;
     }
-
-    if (QUIC_FAILED(Status = MsQuic->ConfigurationLoadCredential(this->_configuration, &Config.CredConfig))) {
-        printf("[!] ConfigurationLoadCredential error [0x%x]\n", Status);
-        return FALSE;
-    }
-
-    return TRUE;
-}
 
 void QuicServer::Start(void) {
 
